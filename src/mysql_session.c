@@ -680,6 +680,30 @@ static int active_backend_for_hostgroup(mysql_session_t *sess, int hostgroup_id)
 }
 
 
+static void bin2txt(pkt *p)
+{
+	int i, j=0;
+	int size = p->length;
+	char *s = (char *)p->data;
+	char temp[size+5*4];
+	char *t;
+	t = &temp;
+	for(i=0; i<size; i++)
+	{
+		if((int)s[i] >= 32 && (int)s[i] < 127) 
+		{
+			t += sprintf(t, "%c", s[i]);
+			j++;
+		} else
+		{
+			t += sprintf(t, "[%02X]", s[i]);
+			j+=4;
+		}
+	}	
+	temp[j] = 0;
+	proxy_debug(PROXY_DEBUG_MYSQL_CONNECTION, 7, ">>>> forward %d %02X sql='%s'\n", size, size, temp);
+}
+
 static int process_client_pkts(mysql_session_t *sess) {
 	//proxy_mysql_thread_t *thrLD=pthread_getspecific(tsd_key);
 	proxy_debug(PROXY_DEBUG_MYSQL_CONNECTION, 7, "Client packets queued: %d\n", sess->client_myds->input.pkts->len);
@@ -849,7 +873,10 @@ static int process_client_pkts(mysql_session_t *sess) {
 					}
 				}
 				sync_server_bytes_at_cmd(sess);
+				//proxy_debug(PROXY_DEBUG_MYSQL_SERVER, 7, ">>>> forward %d, %p\n", p->length, bin2txt(p));
+				bin2txt(p);
 				MY_SESS_ADD_PKT_OUT_SERVER(p);
+
 				//l_ptr_array_add(sess->server_mybe->server_myds->output.pkts, p);
 			} else {
 				// we should never reach here, sanity check
